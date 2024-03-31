@@ -18,6 +18,10 @@ def immich_api(path, **opts)
   end
   req['Content-Type'] = 'application/json'
   req['Accept'] = 'application/json'
+
+  unless ENV['IMMICH_KEY'].is_a?(String)
+    raise "env IMMICH_KEY not set"
+  end
   req['x-api-key'] = ENV['IMMICH_KEY']
 
   res = Net::HTTP.start(uri.hostname, uri.port) {|http| http.request(req) }
@@ -40,7 +44,14 @@ def load_dotenv(file_path)
 end
 
 load_dotenv(File.join(SCRIPT_DIR, '../.env'))
+EXTERNAL_LIBRARY_HOST_PATH = ENV['EXTERNAL_LIBRARY_HOST_PATH']
+EXTERNAL_LIBRARY_CONTAINER_PATH = ENV['EXTERNAL_LIBRARY_CONTAINER_PATH']
+EXTERNAL_LIBRARY_ALBUM_LEVEL = ENV['EXTERNAL_LIBRARY_ALBUM_LEVEL']&.to_i || 2
 
+unless EXTERNAL_LIBRARY_HOST_PATH.is_a?(String) && EXTERNAL_LIBRARY_CONTAINER_PATH.is_a?(String)
+  puts("env EXTERNAL_LIBRARY_HOST_PATH or EXTERNAL_LIBRARY_CONTAINER_PATH not set.")
+  exit 1
+end
 base_path = Pathname.new(ENV['EXTERNAL_LIBRARY_HOST_PATH'])
 unless base_path.directory?
   puts("#{path} is not a directory.")
@@ -60,16 +71,19 @@ album_already_done = 0
 empty_album_count = 0
 album_done = 0
 
-directories.each_with_index do |directory, index|
-  album_name = directory.sub(/^#{base_path}\//, '').sub(/\/$/, '')
+directories.each_with_index do |directory_path, index|
+  album_name = directory_path.sub(/^#{base_path}\//, '').sub(/\/$/, '')
   if done_albums.include?(album_name)
     album_already_done += 1
     next
   end
 
-  asset_files = Dir.entries(directory).filter do |file|
-    file_path = File.join(directory, file)
+  next if album_name.split("/").size < EXTERNAL_LIBRARY_ALBUM_LEVEL
+
+  asset_files = Dir.glob(Pathname.new(directory_path).join('**/*')).filter do |file_path|
     !File.directory?(file_path)
+  end.map do |file_path|
+    file_path.sub(/^#{directory_path}/, '').sub(/\/$/, '')
   end
 
   if asset_files.size == 0
@@ -100,7 +114,7 @@ directories.each_with_index do |directory, index|
     immich_album_asset_ids = immich_album_assets.map {|a| a["id"]}
 
     asset_ids = asset_files.flat_map do |filename|
-      container_asset_path = File.join(ENV['EXTERNAL_LIBRARY_CONTAINER_PATH'], album_name, filename)
+      container_asset_path = File.join(EXTERNAL_LIBRARY_CONTAINER_PATH, album_name, filename)
 
       immich_asset = immich_api('/assets',
         search: { 'originalPath' => container_asset_path },
@@ -125,7 +139,7 @@ directories.each_with_index do |directory, index|
       !asset_ids.include?(id)
     end.flat_map do |id|
       immich_asset = immich_api("/asset/#{id}")
-      if immich_asset["id"] == id && immich_asset["originalPath"].start_with?(ENV['EXTERNAL_LIBRARY_CONTAINER_PATH'])
+      if immich_asset["id"] == id and immich_asset["originalPath"].start_with?(EXTERNAL_LIBRARY_CONTAINER_PATH)
         print("x")
         [id]
       else
