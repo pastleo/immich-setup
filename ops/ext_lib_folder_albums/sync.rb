@@ -1,47 +1,12 @@
 #!/usr/bin/env ruby
 
-require 'net/http'
-require 'json'
+require_relative '../immich-client/lib'
 require 'set'
 require 'pathname'
 require 'fileutils'
 
 SCRIPT_DIR = File.dirname(__FILE__)
 DONE_ALBUMS_FILE = File.join(SCRIPT_DIR, 'synced-albums.txt')
-
-def immich_api(path, **opts)
-  uri = URI("#{ENV['IMMICH_SERVER']}/api#{path}")
-  uri.query = URI.encode_www_form(opts[:search] || {})
-  req = (opts[:method] || Net::HTTP::Get).new(uri) # or Net::HTTP::Post, Net::HTTP::Put
-  if opts[:body].is_a?(Hash)
-    req.body = JSON.generate(opts[:body])
-  end
-  req['Content-Type'] = 'application/json'
-  req['Accept'] = 'application/json'
-
-  unless ENV['IMMICH_KEY'].is_a?(String)
-    raise "env IMMICH_KEY not set"
-  end
-  req['x-api-key'] = ENV['IMMICH_KEY']
-
-  res = Net::HTTP.start(uri.hostname, uri.port) {|http| http.request(req) }
-
-  JSON.parse(res.body)
-end
-
-def load_dotenv(file_path)
-  if File.exist?(file_path)
-    File.foreach(file_path) do |line|
-      # Skip comments and empty lines
-      next if line.strip.start_with?('#') || line.strip.empty?
-
-      key, value = line.strip.split('=', 2)
-      ENV[key] = value
-    end
-  else
-    puts "File not found: #{file_path}"
-  end
-end
 
 load_dotenv(File.join(SCRIPT_DIR, '../.env'))
 EXTERNAL_LIBRARY_HOST_PATH = ENV['EXTERNAL_LIBRARY_HOST_PATH']
@@ -72,7 +37,7 @@ empty_album_count = 0
 album_done = 0
 
 directories.each_with_index do |directory_path, index|
-  album_name = directory_path.sub(/^#{base_path}\//, '').sub(/\/$/, '')
+  album_name = directory_path[(base_path.to_s.size + 1)..-1].sub(/\/$/, '')
   if done_albums.include?(album_name)
     album_already_done += 1
     next
@@ -83,7 +48,7 @@ directories.each_with_index do |directory_path, index|
   asset_files = Dir.glob(Pathname.new(directory_path).join('**/*')).filter do |file_path|
     !File.directory?(file_path)
   end.map do |file_path|
-    file_path.sub(/^#{directory_path}/, '').sub(/\/$/, '')
+    file_path[(directory_path.to_s.size)..-1]
   end
 
   if asset_files.size == 0

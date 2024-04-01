@@ -1,7 +1,12 @@
 #!/bin/bash
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-export $(cat "$SCRIPT_DIR/../.env" | xargs)
+ENV_FILE="$SCRIPT_DIR/../.env"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "no $ENV_FILE"
+  exit 1
+fi
+export $(cat "$ENV_FILE" | xargs)
 
 if [ "$#" -lt 1 ]; then
   echo "usage:"

@@ -22,8 +22,6 @@ vi .env
 # IMMICH_VERSION=vx.xx.x from https://github.com/immich-app/immich/releases
 # DB_PASSWORD=xxxxxxxxxx from openssl rand -hex xx
 
-mkdir DCIM
-
 docker compose up -d
 docker-compose logs --tail=300 -f
 ```
