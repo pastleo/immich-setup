@@ -1,23 +1,15 @@
-version: '3.8'
-
-#
-# WARNING: Make sure to use the docker-compose.yml of the current release:
-#
-# https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml
-#
-# The compose file on main may not be compatible with the latest release.
-#
-
 name: immich
 
 services:
   immich-server:
     container_name: immich_server
+    # get latest release version: https://github.com/immich-app/immich/releases
+    # then edit `IMMICH_VERSION` in .env
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     command: ['start.sh', 'immich']
     volumes:
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
-      - ${EXTERNAL_PATH}:/usr/src/app/external
+      - ${EXTERNAL_PATH}:/usr/src/app/external:ro
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
@@ -37,7 +29,7 @@ services:
     command: ['start.sh', 'microservices']
     volumes:
       - ${UPLOAD_LOCATION}:/usr/src/app/upload
-      - ${EXTERNAL_PATH}:/usr/src/app/external
+      - ${EXTERNAL_PATH}:/usr/src/app/external:ro
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
