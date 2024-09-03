@@ -23,7 +23,7 @@ unless base_path.directory?
   exit 1
 end
 
-immich_albums = immich_api('/album')
+immich_albums = immich_api('/albums')
 
 FileUtils.touch(DONE_ALBUMS_FILE)
 done_albums = Set.new(File.read(DONE_ALBUMS_FILE).split("\n"))
@@ -65,7 +65,7 @@ directories.each_with_index do |directory_path, index|
 
     unless created_immich_album
       puts("creating immich album...")
-      created_immich_album = immich_api('/album',
+      created_immich_album = immich_api('/albums',
         method: Net::HTTP::Post,
         body: {
           "albumName" => album_name
@@ -75,17 +75,20 @@ directories.each_with_index do |directory_path, index|
 
     created_immich_album_id = created_immich_album["id"]
     puts("created_immich_album_id: #{created_immich_album_id}")
-    immich_album_assets = immich_api("/album/#{created_immich_album_id}")["assets"]
+    immich_album_assets = immich_api("/albums/#{created_immich_album_id}")["assets"]
     immich_album_asset_ids = immich_album_assets.map {|a| a["id"]}
 
     asset_ids = asset_files.flat_map do |filename|
       container_asset_path = File.join(EXTERNAL_LIBRARY_CONTAINER_PATH, album_name, filename)
 
-      immich_asset = immich_api('/assets',
-        search: { 'originalPath' => container_asset_path },
-      ).first
+      immich_asset_search_result = immich_api('/search/metadata',
+        method: Net::HTTP::Post,
+        body: {
+          'originalPath' => container_asset_path
+        }
+      )
 
-      immich_asset_id = immich_asset&.[]("id")
+      immich_asset_id = immich_asset_search_result['assets']['items'].first&.[]("id")
       if immich_asset_id.is_a?(String)
         print(".")
 
@@ -103,7 +106,7 @@ directories.each_with_index do |directory_path, index|
     asset_ids_to_remove = immich_album_asset_ids.filter do |id|
       !asset_ids.include?(id)
     end.flat_map do |id|
-      immich_asset = immich_api("/asset/#{id}")
+      immich_asset = immich_api("/assets/#{id}")
       if immich_asset["id"] == id and immich_asset["originalPath"].start_with?(EXTERNAL_LIBRARY_CONTAINER_PATH)
         print("x")
         [id]
@@ -116,7 +119,7 @@ directories.each_with_index do |directory_path, index|
 
     puts("all_assets_found: #{all_assets_found}, asset_ids_to_add.size: #{asset_ids_to_add.size}, asset_ids_to_remove.size: #{asset_ids_to_remove.size}")
 
-    adding_assets_to_album = immich_api("/album/#{created_immich_album_id}/assets",
+    adding_assets_to_album = immich_api("/albums/#{created_immich_album_id}/assets",
       method: Net::HTTP::Put,
       body: {
         "ids" => asset_ids_to_add
@@ -125,7 +128,7 @@ directories.each_with_index do |directory_path, index|
     adding_assets_to_album_all_success = adding_assets_to_album.size == asset_ids_to_add.size && adding_assets_to_album.all? {|o| o["success"]}
     puts("adding_assets_to_album: all success: #{adding_assets_to_album_all_success}")
 
-    removing_assets_to_album = immich_api("/album/#{created_immich_album_id}/assets",
+    removing_assets_to_album = immich_api("/albums/#{created_immich_album_id}/assets",
       method: Net::HTTP::Delete,
       body: {
         "ids" => asset_ids_to_remove

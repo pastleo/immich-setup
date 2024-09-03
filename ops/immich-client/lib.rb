@@ -20,7 +20,9 @@ def immich_api(path, **opts)
 
   res = Net::HTTP.start(uri.hostname, uri.port) {|http| http.request(req) }
 
-  JSON.parse(res.body) rescue res.body
+  res.value # Raises an HTTP error if the response is not 2xx (success)
+
+  JSON.parse(res.body)
 end
 
 def load_dotenv(file_path)
