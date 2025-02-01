@@ -1,12 +1,14 @@
 #!/usr/bin/env ruby
 
 require_relative '../immich-client/lib'
+require_relative '../utils'
 require 'set'
 require 'pathname'
 require 'fileutils'
 
 SCRIPT_DIR = File.dirname(__FILE__)
 DONE_ALBUMS_FILE = File.join(SCRIPT_DIR, 'synced-albums.txt')
+WARNING_FILE = File.join(SCRIPT_DIR, 'warning.log')
 
 load_dotenv(File.join(SCRIPT_DIR, '../.env'))
 EXTERNAL_LIBRARY_HOST_PATH = ENV['EXTERNAL_LIBRARY_HOST_PATH']
@@ -33,8 +35,11 @@ directories_size = directories.size
 
 puts("immich_albums.size: #{immich_albums.size}, external library directories.size: #{directories.size}")
 album_already_done = 0
-empty_album_count = 0
 album_done = 0
+
+File.write(WARNING_FILE, "ext_lib_folder_albums/sync.rb @ #{Time.now.to_s}\n=================================\n", mode: 'a+')
+empty_album_count = 0
+asset_not_found_count = 0
 
 directories.each_with_index do |directory_path, index|
   album_name = directory_path[(base_path.to_s.size + 1)..-1].sub(/\/$/, '')
@@ -45,13 +50,12 @@ directories.each_with_index do |directory_path, index|
 
   next if album_name.split("/").size < EXTERNAL_LIBRARY_ALBUM_LEVEL
 
-  asset_files = Dir.glob(Pathname.new(directory_path).join('**/*')).filter do |file_path|
+  asset_pathes = Dir.glob(Pathname.new(directory_path).join('**/*')).filter do |file_path|
     !File.directory?(file_path)
-  end.map do |file_path|
-    file_path[(directory_path.to_s.size)..-1]
   end
 
-  if asset_files.size == 0
+  if asset_pathes.size == 0
+    File.write(WARNING_FILE, "empty folder album: #{album_name} @ #{directory_path}\n", mode: 'a+')
     empty_album_count += 1
     next
   end
@@ -78,7 +82,8 @@ directories.each_with_index do |directory_path, index|
     immich_album_assets = immich_api("/albums/#{created_immich_album_id}")["assets"]
     immich_album_asset_ids = immich_album_assets.map {|a| a["id"]}
 
-    asset_ids = asset_files.flat_map do |filename|
+    asset_ids = asset_pathes.flat_map do |file_path|
+      filename = file_path[(directory_path.to_s.size)..-1]
       container_asset_path = File.join(EXTERNAL_LIBRARY_CONTAINER_PATH, album_name, filename)
 
       immich_asset_search_result = immich_api('/search/metadata',
@@ -95,12 +100,14 @@ directories.each_with_index do |directory_path, index|
         [immich_asset_id]
       else
         print("?")
+        File.write(WARNING_FILE, "[#{album_name}] asset not found in immich: #{file_path}\n", mode: 'a+')
+        asset_not_found_count += 1
 
         []
       end
     end
     puts("")
-    all_assets_found = asset_ids.size == asset_files.size
+    all_assets_found = asset_ids.size == asset_pathes.size
 
     asset_ids_to_add = asset_ids.filter {|id| !immich_album_asset_ids.include?(id)}
     asset_ids_to_remove = immich_album_asset_ids.filter do |id|
@@ -147,4 +154,9 @@ directories.each_with_index do |directory_path, index|
   end
 end
 
-puts("ok: album_already_done: #{album_already_done}, empty_album_count: #{empty_album_count}, album_done: #{album_done}")
+puts("ok: album_already_done: #{album_already_done}, album_done: #{album_done}")
+
+if empty_album_count > 0 || asset_not_found_count > 0
+  puts("warning: empty_album_count: #{empty_album_count}, asset_not_found_count: #{asset_not_found_count}, PLEASE SEE LOG:\n\t#{WARNING_FILE}")
+end
+File.write(WARNING_FILE, "ext_lib_folder_albums/sync.rb finished @ #{Time.now.to_s}\n", mode: 'a+')

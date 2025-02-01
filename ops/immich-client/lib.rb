@@ -1,5 +1,3 @@
-#!/usr/bin/env ruby
-
 require 'net/http'
 require 'json'
 
@@ -23,18 +21,4 @@ def immich_api(path, **opts)
   res.value # Raises an HTTP error if the response is not 2xx (success)
 
   JSON.parse(res.body)
-end
-
-def load_dotenv(file_path)
-  if File.exist?(file_path)
-    File.foreach(file_path) do |line|
-      # Skip comments and empty lines
-      next if line.strip.start_with?('#') || line.strip.empty?
-
-      key, value = line.strip.split('=', 2)
-      ENV[key] = value
-    end
-  else
-    puts "File not found: #{file_path}"
-  end
 end

@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require_relative 'immich-client/lib'
+require_relative '../utils'
 require 'pp'
 
 if ARGV.size < 1

@@ -1,9 +1,11 @@
-Immich setup
+Immich app setup & ops
 ===
 
-## Ops
+## Folder-structured immich albums
 
-TODO: add doc
+1. `./ops/ext_lib_exif_datetime/check-interactive-fix.rb`
+2. in external library, `Scan` and wait until all `Jobs` done
+3. `./ops/ext_lib_folder_albums/sync.rb`
 
 ## Setup
 
